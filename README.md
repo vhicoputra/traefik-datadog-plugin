@@ -28,8 +28,8 @@ This plugin uses Traefik's Yaegi plugin system, which allows Go plugins to be lo
 The plugin is written in pure Go using standard library, making it compatible with Yaegi:
 
 ```bash
-docker build -t imageregistry-shared-alpha-registry-vpc.ap-southeast-5.cr.aliyuncs.com/mekariengineering/traefik-datadog-plugin:latest .
-docker push imageregistry-shared-alpha-registry-vpc.ap-southeast-5.cr.aliyuncs.com/mekariengineering/traefik-datadog-plugin:latest
+docker build -t registry.com/vhicoputra/traefik-datadog-plugin:latest .
+docker push registry.com/vhicoputra/traefik-datadog-plugin:latest
 ```
 
 ### Option 2: Compiled Plugin (Future)
@@ -48,7 +48,7 @@ datadogPlugin:
   namespace: traefik
   dogstatsdAddress: "datadog-apm.datadog.svc:8127"
   otlpEndpoint: "http://datadog-apm.datadog.svc:4318/v1/traces"
-  serviceName: "traefik-cfs-staging"
+  serviceName: "traefik-staging"
   environment: "staging"
   version: "3.6.5"
   sampleRate: 1.0
@@ -63,7 +63,7 @@ The plugin is registered in Traefik's experimental plugins:
 experimental:
   plugins:
     datadog:
-      moduleName: github.com/mekari/traefik-datadog-plugin
+      moduleName: github.com/vhicoputra/traefik-datadog-plugin
       version: v1.0.0
 ```
 
@@ -88,8 +88,8 @@ Or apply globally via Traefik's default middleware chain.
 
 1. **Build and push the plugin image**:
    ```bash
-   docker build -t imageregistry-shared-alpha-registry-vpc.ap-southeast-5.cr.aliyuncs.com/mekariengineering/traefik-datadog-plugin:latest .
-   docker push imageregistry-shared-alpha-registry-vpc.ap-southeast-5.cr.aliyuncs.com/mekariengineering/traefik-datadog-plugin:latest
+   docker build -t git push -u origin main/traefik-datadog-plugin:latest .
+   docker push git push -u origin main/traefik-datadog-plugin:latest
    ```
 
 2. **Update Helm values** in `values-staging.yaml`:
@@ -104,7 +104,7 @@ Or apply globally via Traefik's default middleware chain.
 
 4. **Verify plugin loading**:
    ```bash
-   kubectl logs -n traefik deployment/traefik-cfs-staging | grep -i plugin
+   kubectl logs -n traefik deployment/traefik-staging | grep -i plugin
    ```
 
 5. **Check metrics in Datadog**:
@@ -117,7 +117,7 @@ Or apply globally via Traefik's default middleware chain.
 
 1. Check Traefik logs for plugin errors:
    ```bash
-   kubectl logs -n traefik deployment/traefik-cfs-staging
+   kubectl logs -n traefik deployment/traefik-staging
    ```
 
 2. Verify plugin configuration in values:
@@ -164,7 +164,7 @@ Or apply globally via Traefik's default middleware chain.
 
 1. Run Traefik locally with plugin:
    ```bash
-   traefik --experimental.plugins.datadog.moduleName=github.com/mekari/traefik-datadog-plugin --experimental.plugins.datadog.version=v1.0.0
+   traefik --experimental.plugins.datadog.moduleName=github.com/vhicoputra/traefik-datadog-plugin --experimental.plugins.datadog.version=v1.0.0
    ```
 
 2. Test with curl:
@@ -209,4 +209,4 @@ p.statsd.Count("request.new_metric", 1, tags, 1.0)
 
 ## License
 
-Internal use only - Mekari Engineering
+Internal use only - Vhico Putra

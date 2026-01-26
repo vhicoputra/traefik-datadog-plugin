@@ -1,7 +1,7 @@
 name: datadog
 displayName: Datadog Metrics and Tracing Plugin
 type: middleware
-import: bitbucket.org/mid-kelola-indonesia/traefik-datadog-plugin
+import: github.com/vhicoputra/traefik-datadog-plugin
 summary: Sends comprehensive metrics and traces to Datadog APM
 description: |
   This plugin provides comprehensive Datadog integration for Traefik, sending:

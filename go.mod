@@ -1,3 +1,3 @@
-module bitbucket.org/mid-kelola-indonesia/traefik-datadog-plugin
+module github.com/vhicoputra/traefik-datadog-plugin
 
 go 1.21
