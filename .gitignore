@@ -47,7 +47,3 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
-
-/sidecar/README-v2.md
-/sidecar/build.sh
-/sidecar/CONTEXT.md

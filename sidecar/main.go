@@ -47,7 +47,7 @@ var onceLogProcessed sync.Once
 func main() {
 	cfg := &Config{
 		DogStatsDAddress: getEnv("DOGSTATSD_ADDRESS", "datadog-apm.datadog.svc:8127"),
-		ServiceName:      getEnv("SERVICE_NAME", "traefik-cfs-staging-echo"),
+		ServiceName:      getEnv("SERVICE_NAME", "traefik"),
 		Environment:      getEnv("ENVIRONMENT", "staging"),
 		Version:          getEnv("VERSION", "3.6.7"),
 		LogFile:          getEnv("LOG_FILE", "/var/log/traefik/access.log"),

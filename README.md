@@ -1,212 +1,121 @@
-# Traefik Datadog Plugin
+# Traefik Datadog Sidecar
 
-Custom Traefik plugin that provides comprehensive Datadog integration, similar to the Nginx Datadog module.
+A Go-based sidecar container that provides Datadog APM integration for Traefik, achieving feature parity with nginx-datadog-module.
+
+## Why This Sidecar?
+
+Traefik's native Datadog integration cannot set custom `resource_name` for APM traces. This results in generic resource names like "GET" instead of hostnames (e.g., `api.example.com`).
+
+This sidecar parses Traefik access logs and sends properly formatted traces and metrics to Datadog, with hostname-based resource names.
 
 ## Features
 
-- **Metrics**: Sends detailed metrics to DogStatsD
-  - `trace.traefik.request.hits` - Total request count
-  - `trace.traefik.request.hits.by_http_status` - Request count by HTTP status
-  - `trace.traefik.request.duration` - Request duration histogram
-  - `trace.traefik.request.duration.by_http_status` - Duration by HTTP status
+- **APM Traces** with hostname as resource name (not generic HTTP method)
+- **Metrics** matching nginx-datadog-module format:
+  - `trace.traefik.request` - APM latency (p50-p99)
+  - `trace.traefik.request.hits` - Request count
+  - `trace.traefik.request.duration` - Latency histogram
   - `trace.traefik.request.errors` - Error count
-  - `trace.traefik.request.errors.by_http_status` - Errors by HTTP status
   - `trace.traefik.request.apdex` - Apdex score
-
-- **Traces**: Sends traces to Datadog APM via OTLP
-  - Proper `resource_name` set to hostname (not HTTP method)
-  - All required tags: `peer.hostname`, `http.status_code`, `service`, `env`, `version`
+- **Full tag support**: `peer.hostname`, `resource_name`, `http.status_code`, `env`, `service`, `version`
 
 ## Architecture
 
-This plugin uses Traefik's Yaegi plugin system, which allows Go plugins to be loaded dynamically without compilation.
-
-## Building
-
-### Option 1: Yaegi Plugin (Recommended for Phase 1)
-
-The plugin is written in pure Go using standard library, making it compatible with Yaegi:
-
-```bash
-docker build -t registry.com/vhicoputra/traefik-datadog-plugin:latest .
-docker push registry.com/vhicoputra/traefik-datadog-plugin:latest
 ```
-
-### Option 2: Compiled Plugin (Future)
-
-For compiled plugins, uncomment the build commands in the Dockerfile and build as a shared library.
+┌─────────────────────────────────────────────────────┐
+│  Traefik Pod                                        │
+├─────────────────────────────────────────────────────┤
+│  ┌─────────────┐         ┌───────────────────────┐ │
+│  │  Traefik    │──JSON──▶│ /var/log/traefik/     │ │
+│  │  (main)     │  logs   │ access.log            │ │
+│  └─────────────┘         │ (shared volume)       │ │
+│                          └───────────┬───────────┘ │
+│                                      │             │
+│                          ┌───────────▼───────────┐ │
+│                          │  datadog-sidecar      │ │
+│                          │  (this container)     │ │
+│                          └───────────┬───────────┘ │
+│                                      │             │
+│                          ┌───────────▼───────────┐ │
+│                          │  Datadog Agent        │ │
+│                          │  APM:8126 DogStatsD:  │ │
+│                          │  8127                 │ │
+│                          └───────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+```
 
 ## Configuration
 
-### Helm Values
+### Environment Variables
 
-The plugin is configured via `values-staging.yaml`:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DOGSTATSD_ADDRESS` | `datadog-apm.datadog.svc:8127` | DogStatsD endpoint |
+| `SERVICE_NAME` | `traefik` | Service name in Datadog |
+| `ENVIRONMENT` | `staging` | Environment tag |
+| `VERSION` | `3.6.7` | Version tag |
+| `LOG_FILE` | `/var/log/traefik/access.log` | Traefik access log path |
 
-```yaml
-datadogPlugin:
-  enabled: true
-  namespace: traefik
-  dogstatsdAddress: "datadog-apm.datadog.svc:8127"
-  otlpEndpoint: "http://datadog-apm.datadog.svc:4318/v1/traces"
-  serviceName: "traefik-staging"
-  environment: "staging"
-  version: "3.6.5"
-  sampleRate: 1.0
-  apdexThreshold: 0.5
-```
+### Traefik Access Log Format
 
-### Traefik Plugin Configuration
-
-The plugin is registered in Traefik's experimental plugins:
+Traefik must be configured to write JSON access logs:
 
 ```yaml
-experimental:
-  plugins:
-    datadog:
-      moduleName: github.com/vhicoputra/traefik-datadog-plugin
-      version: v1.0.0
+accessLog:
+  filePath: /var/log/traefik/access.log
+  format: json
+  fields:
+    defaultMode: keep
 ```
-
-### Middleware Usage
-
-Apply the middleware to your Ingress resources:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: my-ingress
-  annotations:
-    traefik.ingress.kubernetes.io/middlewares: traefik-datadog-plugin@kubernetescrd
-spec:
-  # ... ingress spec
-```
-
-Or apply globally via Traefik's default middleware chain.
 
 ## Deployment
 
-1. **Build and push the plugin image**:
-   ```bash
-   docker build -t git push -u origin main/traefik-datadog-plugin:latest .
-   docker push git push -u origin main/traefik-datadog-plugin:latest
-   ```
+### Build
 
-2. **Update Helm values** in `values-staging.yaml`:
-   - Ensure `datadogPlugin.enabled: true`
-   - Verify Datadog endpoints are correct
-   - Set service name and environment
-
-3. **Deploy via Helm/ArgoCD**:
-   ```bash
-   helm upgrade --install traefik . -f values-staging.yaml
-   ```
-
-4. **Verify plugin loading**:
-   ```bash
-   kubectl logs -n traefik deployment/traefik-staging | grep -i plugin
-   ```
-
-5. **Check metrics in Datadog**:
-   - Look for metrics prefixed with `trace.traefik.request.*`
-   - Verify tags include `peer.hostname`, `http.status_code`, etc.
-
-## Troubleshooting
-
-### Plugin Not Loading
-
-1. Check Traefik logs for plugin errors:
-   ```bash
-   kubectl logs -n traefik deployment/traefik-staging
-   ```
-
-2. Verify plugin configuration in values:
-   ```bash
-   helm get values traefik -n traefik
-   ```
-
-3. Check initContainer logs:
-   ```bash
-   kubectl logs -n traefik <pod-name> -c plugin-loader
-   ```
-
-### Metrics Not Appearing
-
-1. Verify DogStatsD endpoint is reachable:
-   ```bash
-   kubectl exec -n traefik <pod-name> -- nc -u -v datadog-apm.datadog.svc 8127
-   ```
-
-2. Check plugin is applied to routes:
-   ```bash
-   kubectl get middleware -n traefik
-   ```
-
-3. Verify Datadog Agent is receiving metrics:
-   ```bash
-   kubectl logs -n datadog <datadog-agent-pod> | grep traefik
-   ```
-
-### Traces Not Appearing
-
-1. Verify OTLP endpoint:
-   ```bash
-   kubectl exec -n traefik <pod-name> -- curl -v http://datadog-apm.datadog.svc:4318/v1/traces
-   ```
-
-2. Check trace format in plugin logs (if debug enabled)
-
-3. Verify Datadog APM is configured correctly
-
-## Development
-
-### Local Testing
-
-1. Run Traefik locally with plugin:
-   ```bash
-   traefik --experimental.plugins.datadog.moduleName=github.com/vhicoputra/traefik-datadog-plugin --experimental.plugins.datadog.version=v1.0.0
-   ```
-
-2. Test with curl:
-   ```bash
-   curl -H "Host: test.example.com" http://localhost:8000/
-   ```
-
-3. Check metrics in Datadog
-
-### Adding New Metrics
-
-Edit `main.go` and add new metric calls in the `sendMetrics` function:
-
-```go
-p.statsd.Count("request.new_metric", 1, tags, 1.0)
+```bash
+docker buildx build --platform linux/amd64 -t your-registry/traefik-datadog-sidecar:v2.0.2 .
+docker push your-registry/traefik-datadog-sidecar:v2.0.2
 ```
 
-## Phase 1 (POC) Status
+### Helm Values Example
 
-✅ Basic plugin structure
-✅ DogStatsD metrics integration
-✅ OTLP trace integration
-✅ Helm chart integration
-✅ Middleware template
-⏳ Production hardening (Phase 3)
+```yaml
+deployment:
+  additionalVolumes:
+    - name: traefik-logs
+      emptyDir: {}
+  additionalContainers:
+    - name: datadog-sidecar
+      image: your-registry/traefik-datadog-sidecar:v2.0.2
+      env:
+        - name: DOGSTATSD_ADDRESS
+          value: "datadog-apm.datadog.svc:8127"
+        - name: SERVICE_NAME
+          value: "traefik-production"
+        - name: ENVIRONMENT
+          value: "production"
+      volumeMounts:
+        - name: traefik-logs
+          mountPath: /var/log/traefik
+          readOnly: true
+      resources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+```
 
-## Phase 2 (Enhancement) - TODO
+## Metrics Comparison with nginx
 
-- [ ] Match Nginx's exact metric names and structure
-- [ ] Improve OTLP trace format
-- [ ] Add more detailed tags
-- [ ] Performance optimization
-
-## Phase 3 (Production) - TODO
-
-- [ ] Comprehensive error handling
-- [ ] Metrics batching
-- [ ] Connection pooling
-- [ ] Retry logic
-- [ ] Circuit breakers
-- [ ] Comprehensive testing
+| nginx Metric | traefik Metric |
+|--------------|----------------|
+| `trace.nginx.request` | `trace.traefik.request` |
+| `trace.nginx.request.hits` | `trace.traefik.request.hits` |
+| `trace.nginx.request.duration` | `trace.traefik.request.duration` |
+| `trace.nginx.request.errors` | `trace.traefik.request.errors` |
+| `trace.nginx.request.apdex` | `trace.traefik.request.apdex` |
 
 ## License
 
-Internal use only - Vhico Putra
+Vhico Putra
