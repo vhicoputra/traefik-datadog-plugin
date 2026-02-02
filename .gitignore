@@ -48,6 +48,6 @@ Thumbs.db
 *.mov
 *.wmv
 
-sidecar/README-v2.md
-sidecar/build.sh
-sidecar/CONTEXT.md
+/sidecar/README-v2.md
+/sidecar/build.sh
+/sidecar/CONTEXT.md
